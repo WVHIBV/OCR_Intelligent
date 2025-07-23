@@ -75,8 +75,34 @@ dist/*.msi
 # Test and debug files
 test_*.py
 *_test.py
+debug_*.py
+*_debug.py
 debug_*.bat
 *_debug.bat
+
+# Documentation temporaire
+*_TEMP.md
+*_DEBUG.md
+REVOLUTION_*.md
+DOCUMENTATION_*.md
+BILAN_*.md
+AMELIORATIONS_*.md
+RESUME_*.md
+
+# Dossiers de build et distribution temporaires
+dist/
+exe/
+tf_offline/
+tools/
+facture/
+
+# Dossiers de sortie temporaires dans output/
+output/new_system/
+output/old_system/
+output/text_zones/
+output/comparison_*/
+output/intelligent_test_*/
+output/test_*/
 
 # Jupyter Notebook
 .ipynb_checkpoints

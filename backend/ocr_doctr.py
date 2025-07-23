@@ -137,15 +137,36 @@ def _simulate_doctr_ocr(image_path: str) -> Tuple[List[str], List[float]]:
 
         for line, conf in zip(lines, confidences):
             # DocTR est généralement meilleur pour la structure des documents
-            # Ajuster la confiance selon le type de contenu
-            if any(keyword in line.lower() for keyword in ['facture', 'invoice', 'total', 'date', 'montant']):
-                # Boost pour les mots-clés de documents
-                adjusted_conf = min(95.0, conf * 1.1)
-            elif line.strip().replace('.', '').replace(',', '').replace('€', '').replace('$', '').isdigit():
-                # Boost pour les nombres (DocTR est bon avec les chiffres)
-                adjusted_conf = min(92.0, conf * 1.05)
+            # Ajuster la confiance selon le type de contenu avec des critères plus sophistiqués
+
+            line_lower = line.lower().strip()
+
+            # Boost pour les mots-clés de documents structurés
+            if any(keyword in line_lower for keyword in ['facture', 'invoice', 'total', 'date', 'montant', 'prix', 'tva', 'ht', 'ttc']):
+                adjusted_conf = min(95.0, conf * 1.15)
+
+            # Boost pour les nombres et montants (DocTR excelle avec les chiffres)
+            elif any(char.isdigit() for char in line) and any(symbol in line for symbol in ['€', '$', '%', '.']):
+                adjusted_conf = min(93.0, conf * 1.12)
+
+            # Boost pour les dates (format reconnaissable)
+            elif any(pattern in line for pattern in ['/', '-', '20', '19']) and any(char.isdigit() for char in line):
+                adjusted_conf = min(90.0, conf * 1.08)
+
+            # Boost pour les codes/références (alphanumériques)
+            elif len(line) > 3 and any(char.isdigit() for char in line) and any(char.isalpha() for char in line):
+                adjusted_conf = min(88.0, conf * 1.05)
+
+            # Pénalité pour les lignes très courtes (souvent des artefacts)
+            elif len(line.strip()) <= 2:
+                adjusted_conf = max(0.0, conf * 0.7)
+
+            # Pénalité pour les caractères spéciaux isolés
+            elif len(line.strip()) == 1 and not line.strip().isalnum():
+                adjusted_conf = max(0.0, conf * 0.5)
+
             else:
-                # Légère réduction pour simuler DocTR
+                # Légère réduction pour simuler DocTR sur texte général
                 adjusted_conf = max(0.0, conf * 0.98)
 
             optimized_lines.append(line)

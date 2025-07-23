@@ -22,6 +22,7 @@ from backend.ocr_easyocr import ocr_easyocr
 from backend.ocr_doctr import ocr_doctr
 from backend.export import export_to_word
 from backend.corrector import correct_text
+from backend.quality_evaluator import adjust_confidence_with_quality, get_quality_report
 
 # Configuration du logging
 logger = logging.getLogger(__name__)
@@ -103,11 +104,61 @@ def run_all_ocr_methods(image_paths):
         results["doctr"]["lines"].extend(lines_doctr)
         results["doctr"]["confs"].extend(confs_doctr)
 
+    # Appliquer l'évaluation de qualité pour ajuster les scores de confiance
+    for method in results:
+        if results[method]["lines"] and results[method]["confs"]:
+            # Ajuster les scores de confiance avec l'évaluateur de qualité
+            adjusted_confs = adjust_confidence_with_quality(
+                results[method]["lines"],
+                results[method]["confs"]
+            )
+            results[method]["confs"] = adjusted_confs
+
+            # Générer un rapport de qualité pour le logging
+            quality_report = get_quality_report(results[method]["lines"], adjusted_confs)
+            logger.info(f"Rapport qualité {method}:\n{quality_report}")
+
+    # Calcul de confiance amélioré avec pondération
     for method in results:
         confs = results[method]["confs"]
-        results[method]["avg_conf"] = sum(confs) / len(confs) if confs else 0
+        lines = results[method]["lines"]
 
-    best_method = max(results.items(), key=lambda x: x[1]["avg_conf"])[0]
+        if confs and lines:
+            # Calcul de confiance pondérée par la longueur des lignes
+            weighted_conf = 0
+            total_weight = 0
+
+            for line, conf in zip(lines, confs):
+                # Pondération basée sur la longueur de la ligne (plus de texte = plus fiable)
+                weight = max(1, len(line.strip()) / 10)  # Minimum 1, augmente avec la longueur
+
+                # Bonus pour les lignes avec contenu structuré
+                if any(keyword in line.lower() for keyword in ['facture', 'total', 'date', 'montant']):
+                    weight *= 1.5
+                elif any(char.isdigit() for char in line) and len(line.strip()) > 3:
+                    weight *= 1.2
+
+                weighted_conf += conf * weight
+                total_weight += weight
+
+            # Confiance pondérée finale
+            results[method]["avg_conf"] = weighted_conf / total_weight if total_weight > 0 else 0
+
+            # Ajustement basé sur le nombre de lignes détectées (plus de contenu = plus fiable)
+            line_count_factor = min(1.1, 1 + (len(lines) - 5) * 0.01)  # Bonus jusqu'à 10% pour beaucoup de lignes
+            results[method]["avg_conf"] *= line_count_factor
+
+            # Plafonner à 99% (jamais 100% sauf correction manuelle)
+            results[method]["avg_conf"] = min(99.0, results[method]["avg_conf"])
+        else:
+            results[method]["avg_conf"] = 0
+
+    # Sélection de la meilleure méthode avec critères multiples
+    best_method = max(results.items(), key=lambda x: (
+        x[1]["avg_conf"],  # Critère principal : confiance
+        len(x[1]["lines"]),  # Critère secondaire : nombre de lignes
+        sum(len(line) for line in x[1]["lines"])  # Critère tertiaire : quantité de texte
+    ))[0]
     os.makedirs("output", exist_ok=True)
     output_path = os.path.join("output", f"result_{best_method}.docx")
     export_to_word(results[best_method]["lines"], results[best_method]["confs"], output_path, image_path=image_paths[0], method=best_method)
