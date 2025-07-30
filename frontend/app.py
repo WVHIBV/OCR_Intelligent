@@ -31,6 +31,121 @@ from backend.main import run_all_ocr_methods
 from backend.export import export_to_word
 from backend.preprocessing import detect_text_zones
 
+def create_simple_word_document(zone_ocr_results, original_image_path):
+    """
+    Crée un document Word simple avec juste le texte réorganisé
+    """
+    import docx
+    from docx.shared import Inches
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from datetime import datetime
+
+    try:
+        # Créer le document
+        doc = docx.Document()
+
+        # Titre principal
+        title = doc.add_heading('📄 TEXTE EXTRAIT ET RÉORGANISÉ', 0)
+        title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+        # Informations générales
+        doc.add_paragraph(f"Document source: {os.path.basename(original_image_path)}")
+        doc.add_paragraph(f"Date de traitement: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+
+        # Compter les zones réussies
+        successful_zones = [z for z in zone_ocr_results.values() 
+                           if isinstance(z, dict) and "error" not in z]
+        doc.add_paragraph(f"Zones traitées: {len(successful_zones)}")
+
+        # Ligne de séparation
+        doc.add_paragraph("─" * 50)
+
+        # Récupérer l'ordre de lecture intelligent
+        reading_order = zone_ocr_results.get("reading_order", [])
+        
+        if reading_order:
+            # Filtrer les zones valides
+            valid_zones = {zone_id: zone_data for zone_id, zone_data in zone_ocr_results.items() 
+                          if isinstance(zone_data, dict) and "error" not in zone_data}
+            
+            # Réorganiser le texte
+            reorganized_text = reorganize_text_by_reading_order(valid_zones, reading_order)
+            
+            if reorganized_text and reorganized_text != "Aucun texte valide détecté dans les zones":
+                # Titre de section
+                doc.add_heading('📖 TEXTE RÉORGANISÉ SELON L\'ORDRE DE LECTURE INTELLIGENT', level=1)
+                
+                # Ajouter le texte réorganisé
+                text_para = doc.add_paragraph()
+                text_run = text_para.add_run(reorganized_text)
+                text_run.font.name = 'Arial'
+                text_run.font.size = docx.shared.Pt(11)
+                
+                # Statistiques
+                doc.add_paragraph("─" * 30)
+                doc.add_heading('📊 Statistiques', level=2)
+                
+                if successful_zones:
+                    avg_conf = sum(z["confidence"] for z in successful_zones) / len(successful_zones)
+                    doc.add_paragraph(f"Confiance moyenne: {avg_conf:.1f}%")
+                    
+                    total_chars = sum(len(z.get("best_text", "")) for z in successful_zones)
+                    doc.add_paragraph(f"Caractères extraits: {total_chars:,}")
+            else:
+                doc.add_paragraph("⚠️ Aucun texte valide n'a pu être extrait des zones détectées")
+        else:
+            doc.add_paragraph("⚠️ Aucun ordre de lecture intelligent disponible")
+
+        # Sauvegarder le document
+        output_path = os.path.join("output", f"{os.path.splitext(os.path.basename(original_image_path))[0]}_texte_reorganise.docx")
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        doc.save(output_path)
+        
+        print(f"[OK] Document Word simple créé: {output_path}")
+        return output_path
+
+    except Exception as e:
+        print(f"[ERROR] Erreur lors de la création du document Word simple: {e}")
+        return None
+
+def reorganize_text_by_reading_order(zone_results, reading_order):
+    """
+    Réorganise le texte extrait selon l'ordre de lecture intelligent
+    
+    Args:
+        zone_results (dict): Résultats des zones avec leurs données
+        reading_order (list): Liste ordonnée des IDs de zones
+    
+    Returns:
+        str: Texte réorganisé selon l'ordre de lecture
+    """
+    if not zone_results or not reading_order:
+        return "Aucun texte à réorganiser"
+    
+    reorganized_text = []
+    
+    for zone_id in reading_order:
+        if zone_id in zone_results:
+            zone_data = zone_results[zone_id]
+            best_text = zone_data.get("best_text", "").strip()
+            
+            # Filtrer les textes vides ou qui contiennent des messages d'erreur
+            if (best_text and 
+                best_text != "Aucun texte détecté avec toutes les configurations" and
+                not best_text.startswith("Aucun texte détecté") and
+                len(best_text) > 1):  # Au moins 2 caractères
+                reorganized_text.append(best_text)
+    
+    if not reorganized_text:
+        return "Aucun texte valide détecté dans les zones"
+    
+    # Ajouter des séparateurs pour améliorer la lisibilité
+    if len(reorganized_text) > 1:
+        # Ajouter des espaces entre les zones pour une meilleure séparation
+        return "\n\n".join(reorganized_text)
+    else:
+        return "\n".join(reorganized_text)
+
 def _create_zones_word_document(zone_ocr_results, original_image_path):
     """
     Crée un document Word avec les résultats OCR de toutes les zones
@@ -52,16 +167,53 @@ def _create_zones_word_document(zone_ocr_results, original_image_path):
     from datetime import datetime
     doc.add_paragraph(f"Date de traitement: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
-    # Compter les zones réussies
-    successful_zones = [z for z in zone_ocr_results.values() if "error" not in z]
+    # Compter les zones réussies (ignorer les clés spéciales)
+    successful_zones = [z for z in zone_ocr_results.values() 
+                       if isinstance(z, dict) and "error" not in z]
     doc.add_paragraph(f"Zones traitées avec succès: {len(successful_zones)}/{len(zone_ocr_results)}")
 
     # Ajouter une ligne de séparation
     doc.add_paragraph("─" * 50)
 
-    # Traiter chaque zone
-    for zone_id in sorted(zone_ocr_results.keys()):
+    # Ajouter le texte réorganisé selon l'ordre de lecture intelligent
+    reading_order = zone_ocr_results.get("reading_order", [])
+    if reading_order:
+        doc.add_heading('📄 TEXTE RÉORGANISÉ SELON L\'ORDRE DE LECTURE INTELLIGENT', level=1)
+        
+        # Filtrer les zones valides
+        valid_zones = {zone_id: zone_data for zone_id, zone_data in zone_ocr_results.items() 
+                      if isinstance(zone_data, dict) and "error" not in zone_data}
+        
+        # Réorganiser le texte
+        reorganized_text = reorganize_text_by_reading_order(valid_zones, reading_order)
+        
+        if reorganized_text and reorganized_text != "Aucun texte à réorganiser":
+            text_para = doc.add_paragraph()
+            text_run = text_para.add_run(reorganized_text)
+            text_run.font.name = 'Arial'
+            text_run.font.size = docx.shared.Pt(11)
+        else:
+            doc.add_paragraph("(Aucun texte à réorganiser)")
+        
+        doc.add_paragraph("─" * 50)
+
+    # Traiter chaque zone - gérer le tri des clés mixtes (str et int)
+    def sort_key(zone_id):
+        if isinstance(zone_id, str):
+            # Essayer de convertir en int, sinon garder la string
+            try:
+                return (0, int(zone_id))  # 0 pour les entiers
+            except ValueError:
+                return (1, zone_id)  # 1 pour les strings
+        else:
+            return (0, zone_id)  # 0 pour les entiers
+    
+    for zone_id in sorted(zone_ocr_results.keys(), key=sort_key):
         zone_data = zone_ocr_results[zone_id]
+        
+        # Ignorer les clés spéciales qui ne sont pas des zones (comme "reading_order")
+        if not isinstance(zone_data, dict) or zone_id == "reading_order":
+            continue
 
         if "error" in zone_data:
             # Zone en erreur
@@ -421,10 +573,15 @@ if uploaded_file:
                                 "error": str(e)
                             }
 
+            # Ajouter l'ordre de lecture intelligent aux résultats
+            if "reading_order" in zone_results:
+                zone_ocr_results["reading_order"] = zone_results["reading_order"]
+            
             st.session_state.zone_ocr_results = zone_ocr_results
 
-            # Compter les zones réussies
-            successful_zones = [z for z in zone_ocr_results.values() if "error" not in z]
+            # Compter les zones réussies (ignorer les clés spéciales)
+            successful_zones = [z for z in zone_ocr_results.values() 
+                               if isinstance(z, dict) and "error" not in z]
             if successful_zones:
                 st.success(f"✅ OCR terminé sur {len(successful_zones)} zones")
 
@@ -445,15 +602,62 @@ if uploaded_file:
                     }
                 }
                 best_method = "zones_combined"
+                
+                # Afficher les statistiques par moteur
+                st.markdown("### 📊 Statistiques par moteur OCR")
+                method_stats = {"tesseract": [], "easyocr": [], "doctr": []}
+                
+                for zone_data in successful_zones:
+                    ocr_results = zone_data["ocr_results"]
+                    for method, result in ocr_results.items():
+                        if method in method_stats:
+                            method_stats[method].append(result.get("avg_conf", 0))
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    if method_stats["tesseract"]:
+                        avg_tesseract = sum(method_stats["tesseract"]) / len(method_stats["tesseract"])
+                        st.metric("Tesseract", f"{avg_tesseract:.1f}%", f"{len(method_stats['tesseract'])} zones")
+                    else:
+                        st.metric("Tesseract", "0%", "0 zones")
+                
+                with col2:
+                    if method_stats["easyocr"]:
+                        avg_easyocr = sum(method_stats["easyocr"]) / len(method_stats["easyocr"])
+                        st.metric("EasyOCR", f"{avg_easyocr:.1f}%", f"{len(method_stats['easyocr'])} zones")
+                    else:
+                        st.metric("EasyOCR", "0%", "0 zones")
+                
+                with col3:
+                    if method_stats["doctr"]:
+                        avg_doctr = sum(method_stats["doctr"]) / len(method_stats["doctr"])
+                        st.metric("DocTR", f"{avg_doctr:.1f}%", f"{len(method_stats['doctr'])} zones")
+                    else:
+                        st.metric("DocTR", "0%", "0 zones")
             else:
                 st.error("❌ Aucune zone n'a pu être traitée avec succès")
+                
+                # Fallback vers OCR standard
+                st.info("🔄 Tentative de traitement OCR standard...")
+                with st.spinner("🔄 Analyse OCR standard en cours..."):
+                    results, best_method, word_file = run_all_ocr_methods(image_paths)
+                st.success("✅ Analyse OCR standard terminée !")
         else:
-            st.warning("⚠️ Aucune zone détectée - Impossible de faire l'OCR par zones")
+            st.warning("⚠️ Aucune zone détectée - Passage en mode OCR standard")
+            
+            # Fallback vers OCR standard
+            with st.spinner("🔄 Analyse OCR standard en cours..."):
+                results, best_method, word_file = run_all_ocr_methods(image_paths)
+            st.success("✅ Analyse OCR standard terminée !")
 
         # Affichage des résultats par zone
         if zone_ocr_results:
             with st.expander("🎯 Détails par zone", expanded=False):
                 for zone_id, zone_data in zone_ocr_results.items():
+                    # Ignorer les clés spéciales qui ne sont pas des zones
+                    if not isinstance(zone_data, dict) or zone_id == "reading_order":
+                        continue
+                        
                     if "error" in zone_data:
                         st.error(f"Zone {zone_id}: {zone_data['error']}")
                         continue
@@ -471,8 +675,33 @@ if uploaded_file:
                                        use_column_width=True)
 
                         with col_text:
+                            # Afficher tous les résultats OCR pour cette zone
+                            st.markdown("**🔍 Résultats de tous les moteurs OCR :**")
+                            
+                            ocr_results = zone_data["ocr_results"]
+                            for method, result in ocr_results.items():
+                                method_name = method.upper()
+                                avg_conf = result.get("avg_conf", 0)
+                                lines = result.get("lines", [])
+                                text = "\n".join(lines) if lines else "Aucun texte détecté"
+                                
+                                # Indiquer le meilleur résultat
+                                is_best = method == best_method_zone
+                                status = "🏆 MEILLEUR" if is_best else ""
+                                
+                                with st.expander(f"{method_name} ({avg_conf:.1f}%) {status}", expanded=is_best):
+                                    st.text_area(
+                                        f"Texte {method_name}",
+                                        value=text,
+                                        height=80,
+                                        key=f"zone_{zone_id}_{method}_text",
+                                        disabled=True
+                                    )
+                            
+                            # Zone d'édition pour le meilleur résultat
+                            st.markdown("**✏️ Édition du meilleur résultat :**")
                             edited_text = st.text_area(
-                                f"Texte extrait",
+                                f"Texte extrait (meilleur: {best_method_zone.upper()})",
                                 value=zone_data["best_text"],
                                 height=100,
                                 key=f"zone_{zone_id}_text"
@@ -526,7 +755,9 @@ if uploaded_file:
             else:
                 # Mode avancé : affichage des zones combinées
                 if zone_ocr_results:
-                    successful_zones = [z for z in zone_ocr_results.values() if "error" not in z]
+                    # Compter les zones réussies (ignorer les clés spéciales)
+                    successful_zones = [z for z in zone_ocr_results.values() 
+                                       if isinstance(z, dict) and "error" not in z]
 
                     st.markdown(f"**🎯 Résultat par zones : {len(successful_zones)} zones traitées**")
 
@@ -544,19 +775,42 @@ if uploaded_file:
 
                         st.markdown(f"{conf_emoji} **Confiance moyenne : {avg_conf:.1f}% ({conf_label})**")
 
-                        # Texte consolidé de toutes les zones
-                        consolidated_text = "\n\n".join(
-                            f"[Zone {zone_id}]\n{zone_data['best_text']}"
-                            for zone_id, zone_data in sorted(zone_ocr_results.items())
-                            if "error" not in zone_data and zone_data['best_text'].strip()
+                        # Récupérer l'ordre de lecture intelligent depuis les résultats
+                        reading_order = []
+                        if hasattr(zone_ocr_results, 'get') and callable(zone_ocr_results.get):
+                            # Si c'est un dict avec une clé reading_order
+                            reading_order = zone_ocr_results.get("reading_order", [])
+                        else:
+                            # Essayer de récupérer depuis les métadonnées des zones
+                            for zone_data in successful_zones:
+                                if "reading_order" in zone_data:
+                                    reading_order = zone_data["reading_order"]
+                                    break
+                        
+                        # Si pas d'ordre de lecture, utiliser l'ordre des IDs
+                        if not reading_order:
+                            reading_order = sorted(zone_ocr_results.keys())
+                        
+                        # Réorganiser le texte selon l'ordre de lecture intelligent
+                        reorganized_text = reorganize_text_by_reading_order(
+                            {zone_id: zone_data for zone_id, zone_data in zone_ocr_results.items() 
+                             if isinstance(zone_data, dict) and "error" not in zone_data},
+                            reading_order
                         )
 
-                        st.text_area(
-                            "Texte extrait (toutes zones)",
-                            value=consolidated_text,
-                            height=200,
-                            key="main_text_zones"
-                        )
+                        # Afficher le texte réorganisé
+                        st.markdown("### 📄 Texte extrait (ordre de lecture intelligent)")
+                        st.markdown("*Le texte est organisé selon l'ordre logique de lecture du document*")
+                        
+                        if reorganized_text and reorganized_text != "Aucun texte valide détecté dans les zones":
+                            st.text_area(
+                                "Texte réorganisé",
+                                value=reorganized_text,
+                                height=300,
+                                key="reorganized_text"
+                            )
+                        else:
+                            st.warning("⚠️ Aucun texte valide n'a pu être extrait des zones détectées")
                     else:
                         st.error("Aucune zone n'a pu être traitée avec succès")
                 else:
@@ -599,24 +853,51 @@ if uploaded_file:
             st.markdown("---")
             st.markdown("### 📄 Export")
 
+            # Export Word classique
             col_export, col_correction = st.columns(2)
 
             with col_export:
                 if selected_doc_type == "default":
                     st.success(f"🏆 Meilleur résultat : {best_method.upper()}")
                     button_text = "📄 Télécharger le document Word"
+                    
+                    with open(word_file, "rb") as f:
+                        st.download_button(
+                            button_text,
+                            f.read(),
+                            file_name=os.path.basename(word_file),
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        )
                 else:
-                    successful_zones = len([z for z in zone_ocr_results.values() if "error" not in z]) if zone_ocr_results else 0
+                    successful_zones = len([z for z in zone_ocr_results.values() if isinstance(z, dict) and "error" not in z]) if zone_ocr_results else 0
                     st.success(f"🎯 Document avec {successful_zones} zones")
-                    button_text = "📄 Télécharger le document Word (zones)"
-
-                with open(word_file, "rb") as f:
-                    st.download_button(
-                        button_text,
-                        f.read(),
-                        file_name=os.path.basename(word_file),
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    )
+                    
+                    # Deux boutons d'export pour le mode intelligent
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        with open(word_file, "rb") as f:
+                            st.download_button(
+                                "📄 Document Word (zones détaillées)",
+                                f.read(),
+                                file_name=os.path.basename(word_file),
+                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                            )
+                    
+                    with col2:
+                        # Créer un document Word simple avec juste le texte réorganisé
+                        if st.button("📄 Créer document Word (texte réorganisé)", key="create_simple_word"):
+                            simple_word_file = create_simple_word_document(zone_ocr_results, image_paths[0])
+                            if simple_word_file and os.path.exists(simple_word_file):
+                                with open(simple_word_file, "rb") as f:
+                                    st.download_button(
+                                        "📄 Télécharger Word (texte réorganisé)",
+                                        f.read(),
+                                        file_name=os.path.basename(simple_word_file),
+                                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                    )
+                            else:
+                                st.error("❌ Erreur lors de la création du document simple")
 
             with col_correction:
                 st.markdown("**📝 Correction manuelle**")
@@ -639,3 +920,5 @@ if uploaded_file:
                     with open(corrected_path, "w", encoding="utf-8") as f:
                         f.write(corrected_text)
                     st.success(f"✅ Correction enregistrée")
+
+

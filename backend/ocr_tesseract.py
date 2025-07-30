@@ -3,58 +3,119 @@ Module OCR Tesseract avec modèles locaux et configuration automatique
 Priorité aux modèles locaux, fallback vers installation système
 Optimisé pour fonctionnement offline-first
 """
-import os
-import shutil
+import cv2
+import numpy as np
 import pytesseract
 from pytesseract import Output
 import glob
+import subprocess
+import os
+import shutil
+
+# Variables globales déclarées au niveau du module
+USING_LOCAL_MODELS = False
+TESSDATA_PREFIX = ""
 
 def get_local_tessdata_path():
     """
-    Retourne le chemin vers les modèles Tesseract locaux
-    Priorité: models/tesseract/tessdata dans le projet
+    Trouve le chemin vers les modèles Tesseract locaux
     """
-    # Chemin vers les modèles locaux dans le projet
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    local_tessdata = os.path.join(project_root, 'models', 'tesseract', 'tessdata')
-
+    # Chercher dans le dossier models/tesseract/tessdata
+    local_tessdata = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'models', 'tesseract', 'tessdata')
+    
     if os.path.exists(local_tessdata):
-        # Vérifier qu'il y a des modèles (.traineddata)
-        model_files = glob.glob(os.path.join(local_tessdata, '*.traineddata'))
-        if model_files:
-            return local_tessdata
-
+        return local_tessdata
+    
     return None
-
 
 def get_available_languages(tessdata_path):
     """
-    Retourne la liste des langues disponibles dans le dossier tessdata
+    Liste les langues disponibles dans un dossier tessdata
     """
     if not tessdata_path or not os.path.exists(tessdata_path):
         return []
-
-    model_files = glob.glob(os.path.join(tessdata_path, '*.traineddata'))
+    
+    # Chercher les fichiers .traineddata
+    traineddata_files = glob.glob(os.path.join(tessdata_path, '*.traineddata'))
+    
+    # Extraire les codes de langue
     languages = []
-
-    for model_file in model_files:
-        lang_code = os.path.splitext(os.path.basename(model_file))[0]
-        # Exclure les modèles spéciaux
-        if lang_code not in ['osd', 'equ']:
-            languages.append(lang_code)
-
+    for file_path in traineddata_files:
+        filename = os.path.basename(file_path)
+        language_code = filename.replace('.traineddata', '')
+        languages.append(language_code)
+    
     return sorted(languages)
-
 
 def configure_tesseract():
     """
-    Configure Tesseract avec priorité aux modèles locaux
-    1. Modèles locaux dans models/tesseract/tessdata
-    2. Installation système comme fallback
+    Configure Tesseract avec priorité à la version système 5.x
     """
+    global USING_LOCAL_MODELS, TESSDATA_PREFIX
+    
     print("[CONFIG] Configuration Tesseract...")
 
-    # Étape 1: Vérifier les modèles locaux
+    # FORCER l'utilisation de la bonne installation Tesseract 5.x
+    tesseract_5x_path = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+    tessdata_5x_path = r"C:\Program Files\Tesseract-OCR\tessdata"
+    
+    if os.path.exists(tesseract_5x_path):
+        print(f"[FORCE] Utilisation forcée de Tesseract 5.x: {tesseract_5x_path}")
+        
+        # Vérifier la version
+        try:
+            result = subprocess.run([tesseract_5x_path, '--version'], 
+                                  capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                version_output = result.stdout.strip()
+                print(f"[VERSION] {version_output}")
+                
+                if "5." in version_output:
+                    print("[OK] Tesseract 5.x confirmé")
+                    
+                    # Configurer pytesseract pour utiliser le bon chemin
+                    pytesseract.pytesseract.tesseract_cmd = tesseract_5x_path
+                    
+                    # Configurer TESSDATA_PREFIX pour utiliser le bon dossier
+                    if os.path.exists(tessdata_5x_path):
+                        os.environ['TESSDATA_PREFIX'] = tessdata_5x_path
+                        TESSDATA_PREFIX = tessdata_5x_path
+                        USING_LOCAL_MODELS = False
+                        
+                        print(f"[OK] TESSDATA_PREFIX configuré: {tessdata_5x_path}")
+                        
+                        # Vérifier les langues disponibles
+                        try:
+                            result = subprocess.run([tesseract_5x_path, '--list-langs'], 
+                                                  capture_output=True, text=True, timeout=10)
+                            if result.returncode == 0:
+                                languages = result.stdout.strip().split('\n')[1:]
+                                languages = [lang.strip() for lang in languages if lang.strip()]
+                                print(f"[LANG] Langues disponibles: {', '.join(languages)}")
+                                
+                                if 'fra' in languages and 'eng' in languages:
+                                    print("[OK] Langues français et anglais disponibles")
+                                    return True
+                                else:
+                                    print("[WARNING] Langues manquantes")
+                            else:
+                                print(f"[ERROR] Erreur liste langues: {result.stderr}")
+                        except Exception as e:
+                            print(f"[ERROR] Erreur vérification langues: {e}")
+                    else:
+                        print(f"[ERROR] Dossier tessdata non trouvé: {tessdata_5x_path}")
+                else:
+                    print("[ERROR] Version Tesseract incorrecte")
+            else:
+                print(f"[ERROR] Erreur version: {result.stderr}")
+        except Exception as e:
+            print(f"[ERROR] Erreur vérification: {e}")
+    else:
+        print(f"[ERROR] Tesseract 5.x non trouvé: {tesseract_5x_path}")
+
+    print("[WARNING] Fallback vers les modèles locaux")
+    
+    # Fallback vers les modèles locaux
     local_tessdata = get_local_tessdata_path()
 
     if local_tessdata:
@@ -67,6 +128,8 @@ def configure_tesseract():
 
             # Configurer TESSDATA_PREFIX pour utiliser les modèles locaux
             os.environ['TESSDATA_PREFIX'] = local_tessdata
+            TESSDATA_PREFIX = local_tessdata
+            USING_LOCAL_MODELS = True
             print(f"[OK] TESSDATA_PREFIX configuré: {local_tessdata}")
         else:
             print("[WARNING] Aucun modèle de langue trouvé dans le dossier local")
@@ -74,7 +137,7 @@ def configure_tesseract():
     else:
         print("[FOLDER] Aucun modèle local trouvé dans models/tesseract/tessdata")
 
-    # Étape 2: Configurer l'exécutable Tesseract
+    # Configurer l'exécutable Tesseract
     tesseract_path = None
 
     # Vérifier si tesseract est dans le PATH
@@ -101,35 +164,32 @@ def configure_tesseract():
                 break
 
     if tesseract_path:
-        pytesseract.pytesseract.tesseract_cmd = tesseract_path
+        # Configurer pytesseract pour utiliser le chemin spécifique
+        try:
+            pytesseract.pytesseract.tesseract_cmd = tesseract_path
+            print(f"[OK] pytesseract configuré: {tesseract_path}")
+        except Exception as e:
+            print(f"[WARNING] Erreur configuration pytesseract: {e}")
 
-        # Si pas de modèles locaux, essayer d'utiliser ceux du système
-        if not local_tessdata:
-            system_tessdata = None
-            if tesseract_path != 'tesseract':
-                # Installation locale - chercher tessdata à côté
-                system_tessdata = os.path.join(os.path.dirname(tesseract_path), 'tessdata')
-
-            if system_tessdata and os.path.exists(system_tessdata):
-                system_languages = get_available_languages(system_tessdata)
-                if system_languages:
-                    print(f"[LANG] Langues système disponibles: {', '.join(system_languages)}")
-                    os.environ['TESSDATA_PREFIX'] = system_tessdata
-                    print(f"[OK] Utilisation modèles système: {system_tessdata}")
-                else:
-                    print("[WARNING] Aucun modèle trouvé dans l'installation système")
+        # Tester la configuration
+        try:
+            result = subprocess.run([tesseract_path, '--version'], 
+                                  capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                print(f"[TEST] Configuration testée: {result.stdout.strip()}")
+                return True
             else:
-                print("[FOLDER] Tessdata système non trouvé, utilisation configuration par défaut")
-
-        print("[OK] Tesseract configuré avec succès")
-        return True, local_tessdata is not None
+                print(f"[ERROR] Test échoué: {result.stderr}")
+                return False
+        except Exception as e:
+            print(f"[ERROR] Erreur test: {e}")
+            return False
     else:
-        print("[ERROR] ERREUR: Tesseract OCR n'est pas installé ou introuvable")
-        print("[INFO] Veuillez installer Tesseract depuis: https://github.com/UB-Mannheim/tesseract/wiki")
-        return False, False
+        print("[ERROR] Aucun exécutable Tesseract trouvé")
+        return False
 
 # Configurer Tesseract au chargement du module
-TESSERACT_AVAILABLE, USING_LOCAL_MODELS = configure_tesseract()
+TESSERACT_AVAILABLE = configure_tesseract()
 
 
 def get_tesseract_info():
