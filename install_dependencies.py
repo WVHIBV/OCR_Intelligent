@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script d'installation des dépendances pour l'OCR Tool avec mise en page
+Script d'installation des dépendances pour l'OCR Tool avec mise en page et correction automatique
 """
 import subprocess
 import sys
@@ -17,10 +17,10 @@ def install_package(package):
         return False
 
 def main():
-    print("🚀 Installation des dépendances pour l'OCR Tool avec mise en page")
-    print("=" * 60)
+    print("🚀 Installation des dépendances pour l'OCR Tool avec correction automatique")
+    print("=" * 70)
     
-    # Dépendances principales
+    # Dépendances principales (cohérentes avec requirements.txt)
     packages = [
         "streamlit>=1.28.0",
         "opencv-python>=4.8.0", 
@@ -29,8 +29,10 @@ def main():
         "python-docx>=0.8.11",
         "Pillow>=10.0.0",
         "numpy>=1.24.0",
-        "PyMuPDF>=1.23.0",
-        "reportlab>=4.0.0"
+        "psutil>=5.8.0",
+        "torch>=1.9.0",
+        "transformers>=4.20.0",
+        "pandas>=1.5.0"
     ]
     
     print("📦 Installation des packages Python...")
@@ -48,11 +50,16 @@ def main():
         print("\n📋 Fonctionnalités disponibles:")
         print("   ✅ OCR Intelligent avec détection de zones")
         print("   ✅ Export Word classique")
-        print("   ✅ Export PDF structuré (avec mise en page)")
-        print("   ✅ Export HTML interactif")
-        print("   ✅ Export PDF avec image originale")
+        print("   ✅ Export Word avec texte réorganisé")
+        print("   ✅ Interface web moderne avec Streamlit")
+        print("   ✅ Correction automatique avec modèle T5")
+        print("   ✅ Apprentissage continu et amélioration")
         print("\n🚀 Vous pouvez maintenant lancer l'application avec:")
         print("   python -m streamlit run frontend/app.py")
+        print("\n🔄 Pour activer l'apprentissage automatique:")
+        print("   1. Corrigez des documents Word")
+        print("   2. python generate_correction_csv.py")
+        print("   3. python train_t5_correction.py")
     else:
         print("\n⚠️  Certaines dépendances n'ont pas pu être installées.")
         print("   Vérifiez votre connexion internet et réessayez.")

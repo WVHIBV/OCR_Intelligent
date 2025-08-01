@@ -1,10 +1,10 @@
 # ========================================
 # OCR Intelligent - Requirements
 # ========================================
-# Solution OCR avec détection intelligente de zones
-# Version: 1.0.0
+# Solution OCR avec détection intelligente de zones et correction automatique
+# Version: 2.0.0
 # Dernière mise à jour: 2024-12-19
-# Statut du projet: Fonctionnel, optimisé
+# Statut du projet: Fonctionnel, optimisé avec apprentissage automatique
 
 # ========================================
 # Interface web et application
@@ -31,30 +31,16 @@ python-doctr[torch]>=0.12.0 # DocTR (spécialisé documents)
 python-docx>=0.8.11        # Génération de documents Word
 
 # ========================================
+# Apprentissage automatique et correction
+# ========================================
+torch>=1.9.0               # PyTorch pour l'apprentissage automatique
+transformers>=4.20.0       # Modèles T5 pour la correction automatique
+pandas>=1.5.0              # Manipulation des données d'apprentissage
+
+# ========================================
 # Utilitaires système et performance
 # ========================================
 psutil>=5.8.0              # Monitoring système et gestion des processus
-
-# ========================================
-# Dépendances built-in (incluses avec Python)
-# ========================================
-# warnings                   # Gestion des avertissements
-# pathlib                    # Manipulation de chemins
-# tempfile                   # Fichiers temporaires
-# datetime                   # Gestion des dates
-# os                         # Interface système
-# sys                        # Paramètres système
-# glob                       # Recherche de fichiers
-# shutil                     # Utilitaires shell
-# io                         # Entrées/sorties
-# json                       # Traitement JSON
-# logging                    # Système de logs
-
-# ========================================
-# Dépendances optionnelles (auto-installées)
-# ========================================
-# torch>=1.9.0             # PyTorch (inclus avec python-doctr)
-# torchvision>=0.10.0      # Vision par ordinateur (inclus avec python-doctr)
 
 # ========================================
 # Notes d'installation et compatibilité
@@ -82,6 +68,7 @@ psutil>=5.8.0              # Monitoring système et gestion des processus
 # 5. Performance validée:
 #    - Détection de zones: 85-90% de précision
 #    - Reconnaissance de texte: 95%+ avec multi-engine
+#    - Correction automatique: Amélioration continue avec apprentissage
 #    - Vitesse de traitement: 2-5 secondes par page
 #    - Gestion mémoire: Optimisée et auto-nettoyage
 #
@@ -95,6 +82,8 @@ psutil>=5.8.0              # Monitoring système et gestion des processus
 #    - Détection intelligente de 16 types de zones
 #    - Multi-moteurs OCR avec sélection automatique
 #    - Ordre de lecture intelligent
-#    - Export Word avec mise en page préservée
+#    - Export Word avec texte réorganisé
 #    - Interface web moderne avec Streamlit
+#    - Correction automatique avec modèle T5
+#    - Apprentissage continu et amélioration
 #    - Architecture modulaire (3000+ lignes de code)

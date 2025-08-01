@@ -1,29 +1,31 @@
-# OCR Intelligent
+# OCR Intelligent avec correction automatique et apprentissage
 
 <div align="center">
 
-**Solution OCR Intelligente avec Détection de Zones**
+**Solution OCR Intelligente avec Détection de Zones et Apprentissage Automatique**
 
 [![Windows](https://img.shields.io/badge/Windows-10%2B-blue?logo=windows)](https://www.microsoft.com/windows)
 [![Python](https://img.shields.io/badge/Python-3.8%2B-green?logo=python)](https://www.python.org)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.0.0-red.svg)](https://github.com/ocr-intelligent/releases)
+[![Version](https://img.shields.io/badge/Version-2.0.0-red.svg)](https://github.com/WVHIBV/Ocr_Project/releases)
 
-*Solution OCR innovante combinant détection intelligente de zones, multi-moteurs OCR et préservation de la mise en page*
+*Solution OCR innovante combinant détection intelligente de zones, multi-moteurs OCR, correction automatique et apprentissage continu*
 
 </div>
 
 ## 🎯 Vue d'ensemble du projet
 
-OCR Intelligent est une application de reconnaissance optique de caractères qui révolutionne l'extraction de texte de documents. Contrairement aux solutions OCR traditionnelles, cette application comprend la **structure du document** et préserve la **mise en page**.
+OCR Intelligent est une application de reconnaissance optique de caractères qui révolutionne l'extraction de texte de documents. Contrairement aux solutions OCR traditionnelles, cette application comprend la **structure du document**, préserve la **mise en page** et **apprend de vos corrections** pour s'améliorer continuellement.
 
 ### Innovations principales
 - **🧠 Détection intelligente de zones** : Identification automatique et classification sémantique
 - **🔧 Multi-moteurs OCR** : Tesseract, EasyOCR, DocTR avec sélection automatique
 - **📖 Ordre de lecture intelligent** : Réorganisation du texte selon la structure logique
 - **🌐 Interface web moderne** : Streamlit avec upload drag & drop
-- **📄 Export structuré** : Documents Word avec mise en page préservée
+- **📄 Export structuré** : Documents Word avec texte réorganisé
 - **🔒 Fonctionnement 100% offline** : Souveraineté technologique garantie
+- **🤖 Correction automatique** : Modèle T5 entraîné sur vos corrections
+- **📈 Apprentissage continu** : Amélioration automatique au fil du temps
 
 ## 🚀 Démarrage rapide
 
@@ -69,6 +71,12 @@ streamlit run frontend/app.py
 - **DocTR** : Spécialisé documents complexes avec mise en page avancée
 - **Sélection automatique** : Choix du meilleur moteur par zone
 - **Mécanismes de fallback** : Robustesse garantie
+
+### 🤖 Correction automatique et apprentissage
+- **Modèle T5 entraîné** : Correction automatique basée sur vos corrections
+- **Mémoire exacte** : Si une correction existe déjà pour un document, elle est utilisée directement
+- **Apprentissage continu** : Ajoutez vos corrections, régénérez le dataset et réentraînez le modèle
+- **Pipeline d'apprentissage** : Processus automatisé d'amélioration
 
 ### 📄 Types de documents supportés
 - **📄 Facture** : Documents commerciaux avec prix et références
@@ -132,6 +140,7 @@ pip install -r requirements.txt
 - **Reconnaissance OCR** : Multi-moteurs avec sélection automatique
 - **Classification sémantique** : 16 types de zones identifiés
 - **Ordre de lecture** : Détermination de la logique de lecture
+- **Correction automatique** : Application du modèle T5 entraîné
 
 ### 4. Résultats et export
 - **Visualisation des zones** : Affichage coloré des zones détectées
@@ -139,7 +148,21 @@ pip install -r requirements.txt
 - **Export Word** :
   - **Document Word (zones détaillées)** : Analyse complète avec métadonnées
   - **Document Word (texte réorganisé)** : Document simple avec texte réorganisé
-- **Correction manuelle** : Upload de documents corrigés
+- **Correction manuelle** : Upload de documents corrigés pour l'apprentissage
+
+## 🔄 Pipeline d'apprentissage
+
+1. **Uploader une image/PDF** : L'OCR s'exécute, le meilleur résultat est exporté en Word
+2. **Corriger le Word** : Téléchargez, corrigez, puis ré-uploadez le fichier Word corrigé
+3. **Générer le dataset** :  
+   ```bash
+   python generate_correction_csv.py
+   ```
+4. **Entraîner le modèle de correction** :  
+   ```bash
+   python train_t5_correction.py
+   ```
+5. **Relancer l'app** : Les corrections sont désormais appliquées automatiquement
 
 ## 📊 Performances
 
@@ -147,6 +170,7 @@ pip install -r requirements.txt
 - **Détection de zones** : 85-90% de précision
 - **Reconnaissance de texte** : 95%+ avec approche multi-moteurs
 - **Classification sémantique** : 90%+ pour les types de documents courants
+- **Correction automatique** : Amélioration continue avec l'apprentissage
 - **Vitesse de traitement** : 2-5 secondes par page (selon la complexité)
 
 ### Utilisation des ressources
@@ -168,9 +192,14 @@ OCR_Tool-1/
 │   ├── ocr_easyocr.py        # Moteur EasyOCR
 │   ├── ocr_doctr.py          # Moteur DocTR
 │   ├── export.py             # Export Word (210 lignes)
+│   ├── corrector.py          # Correction automatique
 │   └── preprocessing.py      # Prétraitement images
 ├── config/
 │   └── settings.py           # Configuration
+├── corrected/                # Textes corrigés par l'utilisateur
+├── correction_model/         # Modèle T5 entraîné pour la correction
+├── generate_correction_csv.py # Génère le dataset à partir des corrections
+├── train_t5_correction.py    # Entraîne le modèle de correction
 ├── requirements.txt          # Dépendances Python
 ├── README.md                 # Documentation
 └── Lancer_OCR_Intelligent.bat # Lancement Windows
@@ -183,7 +212,9 @@ OCR_Tool-1/
 - **Tesseract OCR** : Moteur OCR principal
 - **EasyOCR** : Moteur OCR alimenté par l'IA
 - **DocTR** : Moteur OCR spécialisé documents
-- **python-docx** : Génération de documents Word
+- **python-docx** : Génération de documents Word structurés
+- **Transformers** : Modèles T5 pour la correction automatique
+- **PyTorch** : Framework d'apprentissage automatique
 
 ## 🔧 Configuration
 
@@ -212,6 +243,7 @@ TF_CPP_MIN_LOG_LEVEL=3
 - **Gestion d'erreurs robuste** avec mécanismes de fallback
 - **Tests unitaires** et d'intégration
 - **Documentation complète** du code
+- **Système d'apprentissage** avec correction automatique
 
 ### Algorithmes implémentés
 - **Détection de zones** : Analyse densité pixels, filtres morphologiques
@@ -219,6 +251,7 @@ TF_CPP_MIN_LOG_LEVEL=3
 - **Classification sémantique** : 16 types de zones identifiés
 - **Ordre de lecture intelligent** : Algorithme de grille documentaire
 - **Sélection automatique** : Évaluation confiance multi-moteurs
+- **Correction automatique** : Modèle T5 avec apprentissage continu
 
 ## 📄 Licence
 
@@ -246,7 +279,7 @@ Ce projet est sous licence MIT - voir le fichier [LICENSE](LICENSE) pour plus de
 
 <div align="center">
 
-**OCR Intelligent** - Solution OCR avec Détection Intelligente de Zones
+**OCR Intelligent** - Solution OCR avec Détection Intelligente de Zones et Apprentissage Automatique
 
 *Développé avec ❤️ pour le traitement automatique de documents*
 
