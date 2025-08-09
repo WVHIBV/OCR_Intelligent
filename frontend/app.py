@@ -22,6 +22,21 @@ from streamlit.components.v1 import html
 import docx
 import zipfile
 
+# Import du module interactif
+try:
+    from frontend.interactive_zones import display_interactive_zones, display_interactive_zones_side_by_side
+    from frontend.interactive_results import display_interactive_results, display_standard_interactive_results
+except ImportError:
+    # Fallback si le module n'est pas disponible
+    def display_interactive_zones(*args, **kwargs):
+        st.warning("Module d'interactivité non disponible")
+    def display_interactive_zones_side_by_side(*args, **kwargs):
+        st.warning("Module d'interactivité côte à côte non disponible")
+    def display_interactive_results(*args, **kwargs):
+        st.warning("Module d'interactivité des résultats non disponible")
+    def display_standard_interactive_results(*args, **kwargs):
+        st.warning("Module d'interactivité des résultats standard non disponible")
+
 # Configuration du chemin backend
 current_dir = Path(__file__).parent
 backend_dir = current_dir.parent
@@ -313,17 +328,23 @@ def clear_output_directory():
             if files_count > 0:
                 # Supprimer tous les fichiers .docx
                 cleaned_count = 0
+                errors = []
                 for file_path in files_before:
                     try:
-                        file_path.unlink()
-                        cleaned_count += 1
+                        if file_path.exists():  # Vérifier que le fichier existe vraiment
+                            file_path.unlink()
+                            cleaned_count += 1
                     except Exception as e:
-                        st.warning(f"Impossible de supprimer {file_path}: {e}")
+                        errors.append(f"Impossible de supprimer {file_path.name}: {e}")
 
+                # Afficher les résultats seulement s'il y a eu des actions ou erreurs importantes
                 if cleaned_count > 0:
-                    st.info(f"Dossier output nettoyé: {cleaned_count} fichier(s) supprimé(s)")
-            else:
-                st.info("Dossier output déjà propre")
+                    st.success(f"✅ Dossier output nettoyé: {cleaned_count} fichier(s) supprimé(s)")
+                
+                # Afficher les erreurs seulement si elles sont significatives
+                for error in errors:
+                    if "Le fichier spécifié est introuvable" not in error:
+                        st.warning(error)
 
         except Exception as e:
             st.error(f"Erreur lors du nettoyage du dossier output: {e}")
@@ -333,9 +354,19 @@ def clear_output_directory():
         st.info("Dossier output créé")
 
 
-# [CLEAN] Nettoyage automatique du dossier output au démarrage
+# [CLEAN] Nettoyage automatique du dossier output au démarrage (silencieux)
 if 'output_cleaned' not in st.session_state:
-    clear_output_directory()
+    # Nettoyage silencieux sans affichage des messages
+    import pathlib
+    output_dir = pathlib.Path("output")
+    if output_dir.exists():
+        files_to_clean = list(output_dir.glob("*.docx"))
+        for file_path in files_to_clean:
+            try:
+                if file_path.exists():
+                    file_path.unlink()
+            except:
+                pass  # Ignorer silencieusement les erreurs au démarrage
     st.session_state.output_cleaned = True
 
 st.set_page_config(page_title="OCR Intelligent", layout="wide")
@@ -470,66 +501,8 @@ if uploaded_file:
             else:
                 st.success(f"✅ {total_zones} zones de texte détectées")
 
-            # Stocker les résultats dans la session
+            # Stocker les résultats dans la session (pas d'affichage ici)
             st.session_state.zone_results = zone_results
-
-            # Affichage compact des zones détectées
-            with st.expander(f"📊 Voir les {zone_results['total_zones']} zones détectées", expanded=False):
-                col_img_annotated, col_zones_list = st.columns([1, 1])
-
-                with col_img_annotated:
-                    if zone_results["annotated_image"] and os.path.exists(zone_results["annotated_image"]):
-                        st.image(zone_results["annotated_image"],
-                                caption="Zones détectées",
-                                use_column_width=True)
-
-                with col_zones_list:
-                    st.markdown("**Zones détectées:**")
-
-                    # Affichage différencié selon le type de détection
-                    if use_intelligent_detection:
-                        # Affichage enrichi pour le système intelligent
-                        for zone in zone_results["zones"][:5]:
-                            zone_type = zone.get("type", "unknown")
-                            type_emojis = {
-                                "header": "🏷️", "price": "💰", "date": "📅",
-                                "address": "🏠", "reference": "📄", "paragraph": "📝",
-                                "signature": "✍️", "footer": "📋", "unknown": "❓"
-                            }
-                            emoji = type_emojis.get(zone_type, "📄")
-                            confidence = zone.get("confidence", 0)
-                            content = zone.get("content", "")
-                            preview = content[:20] + "..." if len(content) > 20 else content
-
-                            st.write(f"{emoji} **Zone {zone['zone_id']}** ({zone_type})")
-                            st.caption(f"Confiance: {confidence:.1%} | '{preview}'")
-                    else:
-                        # Affichage classique
-                        for zone in zone_results["zones"][:5]:
-                            st.write(f"Zone {zone['zone_id']}: {zone['coordinates']['width']}×{zone['coordinates']['height']}px")
-
-                    if len(zone_results["zones"]) > 5:
-                        st.write(f"... et {len(zone_results['zones']) - 5} autres zones")
-
-                    # Bouton de téléchargement ZIP compact
-                    if zone_results["zones"]:
-                        zip_path = os.path.join(zone_results["output_directory"], "zones_texte.zip")
-                        with zipfile.ZipFile(zip_path, 'w') as zipf:
-                            for zone in zone_results["zones"]:
-                                if os.path.exists(zone["path"]):
-                                    zipf.write(zone["path"], zone["filename"])
-
-                            if zone_results["annotated_image"] and os.path.exists(zone_results["annotated_image"]):
-                                zipf.write(zone_results["annotated_image"],
-                                         os.path.basename(zone_results["annotated_image"]))
-
-                        with open(zip_path, "rb") as f:
-                            st.download_button(
-                                "📦 Télécharger zones (ZIP)",
-                                f.read(),
-                                file_name="zones_texte.zip",
-                                mime="application/zip"
-                            )
         elif zone_results and not zone_results["success"]:
             st.warning(f"⚠️ Détection des zones échouée: {zone_results.get('error', 'Erreur inconnue')}")
             st.info("Le traitement OCR continuera sur l'image complète")
@@ -722,99 +695,121 @@ if uploaded_file:
     # --- Affichage des résultats
     if results and best_method:
         st.markdown("---")
-        st.markdown("### 📊 Résultats de l'analyse")
-
-        col_img, col_text = st.columns([1, 2])
-        with col_img:
-            st.image(image_paths[0], caption="Image analysée")
-
-        with col_text:
-            # Affichage selon le mode
+        
+        # Choix du mode d'affichage des résultats
+        results_display_mode = st.radio(
+            "Mode d'affichage des résultats",
+            ["🎯 Interactif", "📋 Traditionnel"],
+            index=0,
+            help="Choisissez comment afficher les résultats de l'analyse OCR"
+        )
+        
+        if results_display_mode.startswith("🎯"):
+            # Mode interactif
             if selected_doc_type == "default":
-                # Mode standard : affichage classique
-                st.markdown(f"**🏆 Meilleur résultat : {best_method.upper()}**")
-                best_data = results[best_method]
-
-                # Indicateur de confiance
-                conf_value = best_data['avg_conf']
-                if conf_value >= 85:
-                    conf_emoji, conf_label = "🟢", "Excellente"
-                elif conf_value >= 70:
-                    conf_emoji, conf_label = "🟠", "Bonne"
-                elif conf_value >= 50:
-                    conf_emoji, conf_label = "🟠", "Moyenne"
-                else:
-                    conf_emoji, conf_label = "🔴", "Faible"
-
-                st.markdown(f"{conf_emoji} **Confiance : {conf_value:.1f}% ({conf_label})**")
-
-                # Texte principal
-                best_text = "\n".join(best_data['lines'])
-                st.text_area("Texte extrait", value=best_text, height=200, key="main_text")
-
+                # Mode standard avec interface interactive
+                display_standard_interactive_results(image_paths[0], results, best_method)
             else:
-                # Mode avancé : affichage des zones combinées
+                # Mode avancé avec zones - affichage interactif des résultats
                 if zone_ocr_results:
-                    # Compter les zones réussies (ignorer les clés spéciales)
-                    successful_zones = [z for z in zone_ocr_results.values() 
-                                       if isinstance(z, dict) and "error" not in z]
-
-                    st.markdown(f"**🎯 Résultat par zones : {len(successful_zones)} zones traitées**")
-
-                    if successful_zones:
-                        # Confiance moyenne
-                        avg_conf = sum(z["confidence"] for z in successful_zones) / len(successful_zones)
-                        if avg_conf >= 85:
-                            conf_emoji, conf_label = "🟢", "Excellente"
-                        elif avg_conf >= 70:
-                            conf_emoji, conf_label = "🟠", "Bonne"
-                        elif avg_conf >= 50:
-                            conf_emoji, conf_label = "🟠", "Moyenne"
-                        else:
-                            conf_emoji, conf_label = "🔴", "Faible"
-
-                        st.markdown(f"{conf_emoji} **Confiance moyenne : {avg_conf:.1f}% ({conf_label})**")
-
-                        # Récupérer l'ordre de lecture intelligent depuis les résultats
-                        reading_order = []
-                        if hasattr(zone_ocr_results, 'get') and callable(zone_ocr_results.get):
-                            # Si c'est un dict avec une clé reading_order
-                            reading_order = zone_ocr_results.get("reading_order", [])
-                        else:
-                            # Essayer de récupérer depuis les métadonnées des zones
-                            for zone_data in successful_zones:
-                                if "reading_order" in zone_data:
-                                    reading_order = zone_data["reading_order"]
-                                    break
-                        
-                        # Si pas d'ordre de lecture, utiliser l'ordre des IDs
-                        if not reading_order:
-                            reading_order = sorted(zone_ocr_results.keys())
-                        
-                        # Réorganiser le texte selon l'ordre de lecture intelligent
-                        reorganized_text = reorganize_text_by_reading_order(
-                            {zone_id: zone_data for zone_id, zone_data in zone_ocr_results.items() 
-                             if isinstance(zone_data, dict) and "error" not in zone_data},
-                            reading_order
-                        )
-
-                        # Afficher le texte réorganisé
-                        st.markdown("### 📄 Texte extrait (ordre de lecture intelligent)")
-                        st.markdown("*Le texte est organisé selon l'ordre logique de lecture du document*")
-                        
-                        if reorganized_text and reorganized_text != "Aucun texte valide détecté dans les zones":
-                            st.text_area(
-                                "Texte réorganisé",
-                                value=reorganized_text,
-                                height=300,
-                                key="reorganized_text"
-                            )
-                        else:
-                            st.warning("⚠️ Aucun texte valide n'a pu être extrait des zones détectées")
-                    else:
-                        st.error("Aucune zone n'a pu être traitée avec succès")
+                    display_interactive_results(image_paths[0], zone_ocr_results)
                 else:
-                    st.warning("Aucun résultat OCR disponible")
+                    display_standard_interactive_results(image_paths[0], results, best_method)
+        else:
+            # Mode traditionnel (code original)
+            st.markdown("### 📊 Résultats de l'analyse")
+
+            col_img, col_text = st.columns([1, 2])
+            with col_img:
+                st.image(image_paths[0], caption="Image analysée")
+
+            with col_text:
+                # Affichage selon le mode
+                if selected_doc_type == "default":
+                    # Mode standard : affichage classique
+                    st.markdown(f"**🏆 Meilleur résultat : {best_method.upper()}**")
+                    best_data = results[best_method]
+
+                    # Indicateur de confiance
+                    conf_value = best_data['avg_conf']
+                    if conf_value >= 85:
+                        conf_emoji, conf_label = "🟢", "Excellente"
+                    elif conf_value >= 70:
+                        conf_emoji, conf_label = "🟠", "Bonne"
+                    elif conf_value >= 50:
+                        conf_emoji, conf_label = "🟠", "Moyenne"
+                    else:
+                        conf_emoji, conf_label = "🔴", "Faible"
+
+                    st.markdown(f"{conf_emoji} **Confiance : {conf_value:.1f}% ({conf_label})**")
+
+                    # Texte principal
+                    best_text = "\n".join(best_data['lines'])
+                    st.text_area("Texte extrait", value=best_text, height=200, key="main_text")
+
+                else:
+                    # Mode avancé : affichage des zones combinées
+                    if zone_ocr_results:
+                        # Compter les zones réussies (ignorer les clés spéciales)
+                        successful_zones = [z for z in zone_ocr_results.values() 
+                                           if isinstance(z, dict) and "error" not in z]
+
+                        st.markdown(f"**🎯 Résultat par zones : {len(successful_zones)} zones traitées**")
+
+                        if successful_zones:
+                            # Confiance moyenne
+                            avg_conf = sum(z["confidence"] for z in successful_zones) / len(successful_zones)
+                            if avg_conf >= 85:
+                                conf_emoji, conf_label = "🟢", "Excellente"
+                            elif avg_conf >= 70:
+                                conf_emoji, conf_label = "🟠", "Bonne"
+                            elif avg_conf >= 50:
+                                conf_emoji, conf_label = "🟠", "Moyenne"
+                            else:
+                                conf_emoji, conf_label = "🔴", "Faible"
+
+                            st.markdown(f"{conf_emoji} **Confiance moyenne : {avg_conf:.1f}% ({conf_label})**")
+
+                            # Récupérer l'ordre de lecture intelligent depuis les résultats
+                            reading_order = []
+                            if hasattr(zone_ocr_results, 'get') and callable(zone_ocr_results.get):
+                                # Si c'est un dict avec une clé reading_order
+                                reading_order = zone_ocr_results.get("reading_order", [])
+                            else:
+                                # Essayer de récupérer depuis les métadonnées des zones
+                                for zone_data in successful_zones:
+                                    if "reading_order" in zone_data:
+                                        reading_order = zone_data["reading_order"]
+                                        break
+                            
+                            # Si pas d'ordre de lecture, utiliser l'ordre des IDs
+                            if not reading_order:
+                                reading_order = sorted(zone_ocr_results.keys())
+                            
+                            # Réorganiser le texte selon l'ordre de lecture intelligent
+                            reorganized_text = reorganize_text_by_reading_order(
+                                {zone_id: zone_data for zone_id, zone_data in zone_ocr_results.items() 
+                                 if isinstance(zone_data, dict) and "error" not in zone_data},
+                                reading_order
+                            )
+
+                            # Afficher le texte réorganisé
+                            st.markdown("### 📄 Texte extrait (ordre de lecture intelligent)")
+                            st.markdown("*Le texte est organisé selon l'ordre logique de lecture du document*")
+                            
+                            if reorganized_text and reorganized_text != "Aucun texte valide détecté dans les zones":
+                                st.text_area(
+                                    "Texte réorganisé",
+                                    value=reorganized_text,
+                                    height=300,
+                                    key="reorganized_text"
+                                )
+                            else:
+                                st.warning("⚠️ Aucun texte valide n'a pu être extrait des zones détectées")
+                        else:
+                            st.error("Aucune zone n'a pu être traitée avec succès")
+                    else:
+                        st.warning("Aucun résultat OCR disponible")
 
         # Comparaison détaillée dans un expander (seulement pour le mode standard)
         if selected_doc_type == "default" and len(results) > 1:

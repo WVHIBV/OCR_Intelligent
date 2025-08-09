@@ -1,4 +1,4 @@
-# OCR Intelligent avec correction automatique et apprentissage
+# OCR Intelligent v2.1.0 - Interface Interactive Avancée
 
 <div align="center">
 
@@ -7,7 +7,7 @@
 [![Windows](https://img.shields.io/badge/Windows-10%2B-blue?logo=windows)](https://www.microsoft.com/windows)
 [![Python](https://img.shields.io/badge/Python-3.8%2B-green?logo=python)](https://www.python.org)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-2.0.0-red.svg)](https://github.com/WVHIBV/Ocr_Project/releases)
+[![Version](https://img.shields.io/badge/Version-2.1.0-red.svg)](https://github.com/WVHIBV/OCR_Intelligent/releases)
 
 *Solution OCR innovante combinant détection intelligente de zones, multi-moteurs OCR, correction automatique et apprentissage continu*
 
@@ -21,6 +21,7 @@ OCR Intelligent est une application de reconnaissance optique de caractères qui
 - **🧠 Détection intelligente de zones** : Identification automatique et classification sémantique
 - **🔧 Multi-moteurs OCR** : Tesseract, EasyOCR, DocTR avec sélection automatique
 - **📖 Ordre de lecture intelligent** : Réorganisation du texte selon la structure logique
+- **🎯 Interface interactive** : Zones cliquables avec synchronisation image ↔ texte
 - **🌐 Interface web moderne** : Streamlit avec upload drag & drop
 - **📄 Export structuré** : Documents Word avec texte réorganisé
 - **🔒 Fonctionnement 100% offline** : Souveraineté technologique garantie
@@ -72,6 +73,17 @@ streamlit run frontend/app.py
 - **Sélection automatique** : Choix du meilleur moteur par zone
 - **Mécanismes de fallback** : Robustesse garantie
 
+### 🎯 Interface interactive avancée (NOUVEAU)
+- **Synchronisation image ↔ texte** : Cliquez sur une zone dans l'image pour la voir surlignée dans le texte et vice versa
+- **Zones cliquables** : Toutes les zones détectées sont interactives avec tooltips informatifs
+- **Numéros d'ordre visibles** : Visualisation de l'ordre de lecture intelligent
+- **Barres de confiance** : Indicateurs visuels de la qualité de reconnaissance par zone
+- **Deux modes d'affichage** :
+  - **🎯 Mode Interactif** : Interface côte à côte avec zones cliquables et synchronisées
+  - **📋 Mode Traditionnel** : Affichage simple des zones et résultats par méthode OCR
+- **Navigation intuitive** : Survolez les zones pour des aperçus instantanés
+- **Responsive design** : Interface adaptative qui s'ajuste automatiquement
+
 ### 🤖 Correction automatique et apprentissage
 - **Modèle T5 entraîné** : Correction automatique basée sur vos corrections
 - **Mémoire exacte** : Si une correction existe déjà pour un document, elle est utilisée directement
@@ -96,6 +108,8 @@ streamlit run frontend/app.py
 ### 🌐 Interface utilisateur moderne
 - **Upload par drag & drop** : PNG, JPG, JPEG, PDF
 - **Visualisation temps réel** : Zones détectées avec couleurs
+- **🎯 Surlignage interactif** : Zones survolables avec synchronisation image ↔ texte
+- **Tooltips informatifs** : Détails complets au survol des zones
 - **Statistiques de performance** : Par moteur OCR
 - **Configuration avancée** : Options personnalisables
 - **Interface responsive** : Adaptée à toutes les tailles d'écran

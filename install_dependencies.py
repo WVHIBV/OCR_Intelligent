@@ -17,7 +17,7 @@ def install_package(package):
         return False
 
 def main():
-    print("🚀 Installation des dépendances pour l'OCR Tool avec correction automatique")
+    print("🚀 Installation des dépendances pour l'OCR Intelligent v2.1.0 - Interface Interactive")
     print("=" * 70)
     
     # Dépendances principales (cohérentes avec requirements.txt)
@@ -49,6 +49,10 @@ def main():
         print("\n🎉 Toutes les dépendances sont installées !")
         print("\n📋 Fonctionnalités disponibles:")
         print("   ✅ OCR Intelligent avec détection de zones")
+        print("   ✅ Interface interactive avancée avec zones cliquables 🆕")
+        print("   ✅ Synchronisation image ↔ texte en temps réel 🆕")
+        print("   ✅ Tooltips informatifs et barres de confiance 🆕")
+        print("   ✅ Deux modes d'affichage (Interactif/Traditionnel) 🆕")
         print("   ✅ Export Word classique")
         print("   ✅ Export Word avec texte réorganisé")
         print("   ✅ Interface web moderne avec Streamlit")
